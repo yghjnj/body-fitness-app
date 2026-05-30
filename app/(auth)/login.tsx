@@ -8,7 +8,7 @@ import { Input } from '../../src/components/ui/Input';
 import { loginWithEmail } from '../../src/services/firebase/auth';
 import { useSubscriptionStore } from '../../src/stores/subscriptionStore';
 
-const DEV_MASTER_KEY = process.env.EXPO_PUBLIC_DEV_MASTER_KEY || '723827';
+const DEV_MASTER_KEY = process.env.EXPO_PUBLIC_DEV_MASTER_KEY || 'not-set';
 
 type LoginMode = 'email' | 'phone' | 'wechat';
 

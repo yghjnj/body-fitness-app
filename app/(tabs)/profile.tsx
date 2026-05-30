@@ -10,7 +10,7 @@ import { useSubscriptionStore } from '../../src/stores/subscriptionStore';
 import { useAuthStore } from '../../src/stores/authStore';
 import { logoutUser } from '../../src/services/firebase/auth';
 
-const DEV_PASSWORD = '723827';
+const DEV_PASSWORD = process.env.EXPO_PUBLIC_DEV_MASTER_KEY || 'not-set';
 
 export default function ProfileScreen() {
   const router = useRouter();
