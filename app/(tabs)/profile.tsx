@@ -10,6 +10,8 @@ import { useSubscriptionStore } from '../../src/stores/subscriptionStore';
 import { useAuthStore } from '../../src/stores/authStore';
 import { logoutUser } from '../../src/services/firebase/auth';
 
+const DEV_PASSWORD = '723827';
+
 export default function ProfileScreen() {
   const router = useRouter();
   const settings = useSettingsStore();
@@ -24,6 +26,50 @@ export default function ProfileScreen() {
     unit: string;
   } | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  // Developer password modal
+  const [showDevPassword, setShowDevPassword] = useState(false);
+  const [devPasswordInput, setDevPasswordInput] = useState('');
+  const [devPasswordError, setDevPasswordError] = useState('');
+
+  const handleDevToggle = (v: boolean) => {
+    if (v) {
+      // Turning ON — require password
+      setShowDevPassword(true);
+      setDevPasswordInput('');
+      setDevPasswordError('');
+    } else {
+      // Turning OFF — no password needed
+      setDeveloper(false);
+    }
+  };
+
+  const confirmDevPassword = () => {
+    if (devPasswordInput === DEV_PASSWORD) {
+      setDeveloper(true);
+      setShowDevPassword(false);
+      setDevPasswordError('');
+    } else {
+      setDevPasswordError('密码错误');
+    }
+  };
+
+  // Hidden dev entry: tap version text 7 times to open password dialog
+  const [devTapCount, setDevTapCount] = useState(0);
+  const handleVersionTap = () => {
+    const next = devTapCount + 1;
+    setDevTapCount(next);
+    if (next >= 7) {
+      setDevTapCount(0);
+      if (!isDeveloper) {
+        setShowDevPassword(true);
+        setDevPasswordInput('');
+        setDevPasswordError('');
+      }
+    }
+    // Reset counter after 2 seconds of inactivity
+    setTimeout(() => setDevTapCount(0), 2000);
+  };
 
   const openEdit = (key: string, label: string, value: string, unit: string) => {
     setEditModal({ key, label, value, unit });
@@ -136,7 +182,7 @@ export default function ProfileScreen() {
           </View>
           <Switch
             value={isDeveloper}
-            onValueChange={(v) => setDeveloper(v)}
+            onValueChange={handleDevToggle}
             trackColor={{ false: Colors.border, true: Colors.primary }}
             thumbColor="#fff"
           />
@@ -166,7 +212,52 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      <Text style={styles.version}>FitBody v1.0.0</Text>
+      {/* Developer Password Modal */}
+      <Modal visible={showDevPassword} transparent animationType="fade">
+        <View style={modalStyles.overlay}>
+          <View style={modalStyles.card}>
+            <Ionicons name="key" size={40} color={Colors.primary} style={{ textAlign: 'center', marginBottom: Spacing.md }} />
+            <Text style={modalStyles.title}>开发者验证</Text>
+            <Text style={[modalStyles.desc, { textAlign: 'center', marginBottom: Spacing.md }]}>
+              请输入开发者密码以开启永久 VIP 权限
+            </Text>
+            <View style={{ marginBottom: Spacing.lg }}>
+              <TextInput
+                style={{
+                  fontSize: 24,
+                  fontWeight: '700',
+                  color: Colors.primary,
+                  borderBottomWidth: 2,
+                  borderBottomColor: Colors.primary,
+                  paddingVertical: Spacing.sm,
+                  textAlign: 'center',
+                  letterSpacing: 8,
+                }}
+                value={devPasswordInput}
+                onChangeText={setDevPasswordInput}
+                secureTextEntry
+                keyboardType="number-pad"
+                autoFocus
+                placeholder="******"
+                placeholderTextColor={Colors.textTertiary}
+              />
+            </View>
+            {devPasswordError ? (
+              <Text style={{ color: Colors.danger, fontSize: FontSize.sm, textAlign: 'center', marginBottom: Spacing.md }}>{devPasswordError}</Text>
+            ) : null}
+            <View style={modalStyles.btnRow}>
+              <Button title="取消" onPress={() => { setShowDevPassword(false); setDevPasswordError(''); }} variant="ghost" style={{ flex: 1 }} />
+              <Button title="确认" onPress={confirmDevPassword} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <TouchableOpacity onPress={handleVersionTap} activeOpacity={0.8}>
+        <Text style={styles.version}>
+          FitBody v1.0.0{devTapCount >= 3 ? (devTapCount >= 5 ? ' 🔑' : ' ...') : ''}
+        </Text>
+      </TouchableOpacity>
       <View style={{ height: 40 }} />
 
       {/* Edit Modal */}
@@ -216,7 +307,8 @@ export default function ProfileScreen() {
 const modalStyles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
   card: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.lg, width: '100%', maxWidth: 320 },
-  title: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text, marginBottom: Spacing.lg, textAlign: 'center' },
+  title: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm, textAlign: 'center' },
+  desc: { fontSize: FontSize.sm, color: Colors.textSecondary },
   inputRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
   input: { fontSize: 40, fontWeight: '700', color: Colors.primary, borderBottomWidth: 2, borderBottomColor: Colors.primary, paddingVertical: Spacing.sm, minWidth: 120, textAlign: 'center' },
   unit: { fontSize: FontSize.lg, color: Colors.textSecondary },

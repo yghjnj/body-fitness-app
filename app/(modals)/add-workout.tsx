@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/config/theme';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
@@ -44,29 +45,35 @@ export default function AddWorkoutScreen() {
   const handleSave = async () => {
     if (!workoutName.trim()) return;
     setSaving(true);
-    const exSets: Omit<ExerciseSet, 'id' | 'workoutId' | 'createdAt' | 'synced'>[] = exercises
-      .filter((e) => e.name.trim())
-      .map((e, i) => ({
-        exerciseName: e.name.trim(),
-        exerciseCategory: 'strength' as const,
-        sets: parseInt(e.sets) || 0,
-        reps: parseInt(e.reps) || 0,
-        weightKg: parseFloat(e.weight) || undefined,
-        orderIndex: i,
-      }));
-    await addWorkout(
-      {
-        userId: 'local-user',
-        name: workoutName.trim(),
-        date: getTodayStr(),
-        durationMinutes: parseInt(duration) || 0,
-        isAiGenerated: 0,
-        source: 'manual',
-      },
-      exSets
-    );
-    setSaving(false);
-    router.back();
+    try {
+      const exSets: Omit<ExerciseSet, 'id' | 'workoutId' | 'createdAt' | 'synced'>[] = exercises
+        .filter((e) => e.name.trim())
+        .map((e, i) => ({
+          exerciseName: e.name.trim(),
+          exerciseCategory: 'strength' as const,
+          sets: parseInt(e.sets) || 0,
+          reps: parseInt(e.reps) || 0,
+          weightKg: parseFloat(e.weight) || undefined,
+          orderIndex: i,
+        }));
+      await addWorkout(
+        {
+          userId: 'local-user',
+          name: workoutName.trim(),
+          date: getTodayStr(),
+          durationMinutes: parseInt(duration) || 0,
+          isAiGenerated: 0,
+          source: 'manual',
+        },
+        exSets
+      );
+      Toast.show({ type: 'success', text1: '已记录', text2: `${workoutName.trim()} · ${duration}分钟`, visibilityTime: 1500 });
+      router.back();
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: '保存失败', text2: e?.message || '请重试' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

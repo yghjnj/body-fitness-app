@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/config/theme';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
@@ -24,21 +25,27 @@ export default function AddMealScreen() {
   const handleSave = async () => {
     if (!foodName.trim()) return;
     setSaving(true);
-    await addMeal({
-      userId: 'local-user',
-      mealType,
-      foodName: foodName.trim(),
-      calories: parseFloat(calories) || 0,
-      proteinG: parseFloat(protein) || 0,
-      carbsG: parseFloat(carbs) || 0,
-      fatG: parseFloat(fat) || 0,
-      fiberG: 0,
-      servingSizeG: parseFloat(serving) || 100,
-      servingUnit: 'g',
-      date: getTodayStr(),
-    });
-    setSaving(false);
-    router.back();
+    try {
+      await addMeal({
+        userId: 'local-user',
+        mealType,
+        foodName: foodName.trim(),
+        calories: parseFloat(calories) || 0,
+        proteinG: parseFloat(protein) || 0,
+        carbsG: parseFloat(carbs) || 0,
+        fatG: parseFloat(fat) || 0,
+        fiberG: 0,
+        servingSizeG: parseFloat(serving) || 100,
+        servingUnit: 'g',
+        date: getTodayStr(),
+      });
+      Toast.show({ type: 'success', text1: '已记录', text2: `${foodName.trim()} 已保存`, visibilityTime: 1500 });
+      router.back();
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: '保存失败', text2: e?.message || '请重试' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

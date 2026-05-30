@@ -1,60 +1,97 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/config/theme';
 import { Card } from '../../src/components/ui/Card';
 import { Button } from '../../src/components/ui/Button';
+import { Input } from '../../src/components/ui/Input';
+import { SegmentedControl } from '../../src/components/ui/SegmentedControl';
 import { useSettingsStore } from '../../src/stores/settingsStore';
+import { useAuthStore } from '../../src/stores/authStore';
+import { getLatestWeight } from '../../src/services/database/repositories/weightRepo';
+import { generateDietPlan, type DietPlan } from '../../src/services/ai';
 
 export default function AIDietScreen() {
   const settings = useSettingsStore();
+  const { user } = useAuthStore();
+  const [weightKg, setWeightKg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<DietPlan | null>(null);
 
-  const generateDiet = () => {
-    setLoading(true);
-    // Simulate AI response - will be replaced with Cloud Functions call
-    setTimeout(() => {
-      setResult({
-        meals: [
-          { name: '早餐', time: '07:30', items: ['全麦面包 2片', '鸡蛋 2个', '牛奶 250ml', '苹果 1个'], calories: 450, protein: 28, carbs: 52, fat: 16 },
-          { name: '午餐', time: '12:00', items: ['糙米饭 150g', '鸡胸肉 150g', '西兰花 200g', '橄榄油 5ml'], calories: 550, protein: 42, carbs: 58, fat: 18 },
-          { name: '加餐', time: '15:30', items: ['希腊酸奶 150g', '坚果 20g'], calories: 200, protein: 14, carbs: 10, fat: 12 },
-          { name: '晚餐', time: '18:30', items: ['三文鱼 150g', '红薯 200g', '菠菜沙拉', '牛油果 半个'], calories: 520, protein: 35, carbs: 48, fat: 22 },
-        ],
-        tips: ['每餐保证蛋白质摄入', '训练前1小时补充碳水', '每天饮水不少于2L', '晚餐尽量在睡前3小时完成'],
-        totalCalories: 1720,
-        totalProtein: 119,
-        totalCarbs: 168,
-        totalFat: 68,
+  useEffect(() => {
+    // Try to load latest weight from database
+    if (user?.id) {
+      getLatestWeight(user.id).then((record) => {
+        if (record) setWeightKg(String(record.weight));
       });
+    }
+  }, [user?.id]);
+
+  const canGenerate = settings.gender && settings.age > 0 && settings.heightCm > 0;
+
+  const handleGenerate = () => {
+    const w = parseFloat(weightKg);
+    if (!w || w <= 0) return;
+    setLoading(true);
+    // Small delay so the loading spinner renders smoothly
+    setTimeout(() => {
+      try {
+        const plan = generateDietPlan({
+          gender: settings.gender,
+          age: settings.age,
+          heightCm: settings.heightCm,
+          weightKg: w,
+          calorieTarget: settings.calorieTarget || undefined,
+        });
+        setResult(plan);
+      } catch (e) {
+        console.error(e);
+      }
       setLoading(false);
-    }, 2000);
+    }, 300);
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* User Params Summary */}
+      {/* User Params */}
       <Card>
-        <Text style={styles.sectionTitle}>当前数据</Text>
+        <Text style={styles.sectionTitle}>身体数据</Text>
         <View style={styles.paramsGrid}>
           <ParamItem label="性别" value={settings.gender === 'male' ? '男' : '女'} />
           <ParamItem label="年龄" value={`${settings.age}岁`} />
           <ParamItem label="身高" value={`${settings.heightCm}cm`} />
-          <ParamItem label="热量目标" value={`${settings.calorieTarget}kcal`} />
+          <ParamItem label="热量目标" value={settings.calorieTarget ? `${settings.calorieTarget}kcal` : '自动计算'} />
         </View>
+        <Input
+          label="当前体重 (kg)"
+          value={weightKg}
+          onChangeText={setWeightKg}
+          keyboardType="numeric"
+          placeholder="输入体重，如 70"
+          suffix="kg"
+        />
       </Card>
 
       <Button
-        title={loading ? 'AI 正在生成...' : '生成饮食建议'}
-        onPress={generateDiet}
+        title={loading ? '正在计算...' : '生成今日饮食建议'}
+        onPress={handleGenerate}
         loading={loading}
+        disabled={!canGenerate}
         size="lg"
         style={{ marginTop: Spacing.md }}
       />
 
       {result && (
         <View style={{ marginTop: Spacing.lg }}>
+          {/* Goal badge */}
+          <View style={styles.goalRow}>
+            <View style={styles.goalBadge}>
+              <Text style={styles.goalBadgeText}>{result.goalLabel}方案</Text>
+            </View>
+            <Text style={styles.bmiText}>BMI {result.bmi} · {result.bmiLabel}</Text>
+          </View>
+
+          {/* Macro summary */}
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryValue}>{result.totalCalories}</Text>
@@ -74,31 +111,33 @@ export default function AIDietScreen() {
             </View>
           </View>
 
-          {result.meals.map((meal: any, i: number) => (
+          {/* Meals */}
+          {result.meals.map((meal, i) => (
             <Card key={i} style={{ marginBottom: Spacing.md }}>
               <View style={styles.mealHeader}>
                 <Text style={styles.mealName}>{meal.name}</Text>
                 <Text style={styles.mealTime}>{meal.time}</Text>
               </View>
               <View style={styles.mealItems}>
-                {meal.items.map((item: string, j: number) => (
-                  <Text key={j} style={styles.mealItem}>• {item}</Text>
+                {meal.items.map((item, j) => (
+                  <Text key={j} style={styles.mealItem}>- {item}</Text>
                 ))}
               </View>
               <View style={styles.mealNutrition}>
-                <NutritionBadge label="热量" value={meal.calories} unit="kcal" color="#F59E0B" />
-                <NutritionBadge label="蛋白质" value={meal.protein} unit="g" color="#EF4444" />
-                <NutritionBadge label="碳水" value={meal.carbs} unit="g" color="#3B82F6" />
-                <NutritionBadge label="脂肪" value={meal.fat} unit="g" color="#8B5CF6" />
+                <NutritionBadge label="热量" value={Math.round(meal.calories)} unit="kcal" color="#F59E0B" />
+                <NutritionBadge label="蛋白质" value={Math.round(meal.protein)} unit="g" color="#EF4444" />
+                <NutritionBadge label="碳水" value={Math.round(meal.carbs)} unit="g" color="#3B82F6" />
+                <NutritionBadge label="脂肪" value={Math.round(meal.fat)} unit="g" color="#8B5CF6" />
               </View>
             </Card>
           ))}
 
+          {/* Tips */}
           <Card>
-            <Text style={styles.tipsTitle}>健康小贴士</Text>
-            {result.tips.map((tip: string, i: number) => (
+            <Text style={styles.tipsTitle}>建议与说明</Text>
+            {result.tips.map((tip, i) => (
               <View key={i} style={styles.tipRow}>
-                <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
+                <Ionicons name="bulb" size={18} color={Colors.warning} />
                 <Text style={styles.tipText}>{tip}</Text>
               </View>
             ))}
@@ -140,6 +179,20 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.md },
   sectionTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text, marginBottom: Spacing.md },
   paramsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  goalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  goalBadge: {
+    backgroundColor: Colors.primary + '15',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  goalBadgeText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.primary },
+  bmiText: { fontSize: FontSize.sm, color: Colors.textSecondary },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',

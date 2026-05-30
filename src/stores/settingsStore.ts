@@ -12,6 +12,7 @@ interface SettingsState {
   gender: 'male' | 'female';
   age: number;
   heightCm: number;
+  weightKg: number;
   loaded: boolean;
   updateSettings: (settings: Partial<SettingsState>) => void;
   setLoaded: (loaded: boolean) => void;
@@ -28,6 +29,7 @@ const DEFAULTS = {
   gender: 'male' as const,
   age: 25,
   heightCm: 170,
+  weightKg: 70,
 };
 
 const STORAGE_KEY = 'fitbody-settings';

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/config/theme';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
@@ -17,14 +18,20 @@ export default function AddWaterScreen() {
 
   const handleSave = async () => {
     setSaving(true);
-    await addWater({
-      userId: 'local-user',
-      amountMl: amount,
-      date: getTodayStr(),
-      time: getNowTimeStr(),
-    });
-    setSaving(false);
-    router.back();
+    try {
+      await addWater({
+        userId: 'local-user',
+        amountMl: amount,
+        date: getTodayStr(),
+        time: getNowTimeStr(),
+      });
+      Toast.show({ type: 'success', text1: '已记录', text2: `饮水 +${amount}ml`, visibilityTime: 1500 });
+      router.back();
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: '保存失败', text2: e?.message || '请重试' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

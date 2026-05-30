@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Alert, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/config/theme';
 import { Button } from '../../src/components/ui/Button';
 import { Input } from '../../src/components/ui/Input';
 import { loginWithEmail } from '../../src/services/firebase/auth';
+import { useSubscriptionStore } from '../../src/stores/subscriptionStore';
+
+const DEV_MASTER_KEY = process.env.EXPO_PUBLIC_DEV_MASTER_KEY || '723827';
 
 type LoginMode = 'email' | 'phone' | 'wechat';
 
@@ -13,6 +16,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const [activeMode, setActiveMode] = useState<LoginMode>((mode as LoginMode) || 'email');
+  const { setDeveloper } = useSubscriptionStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,6 +24,11 @@ export default function LoginScreen() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+
+  // Developer master key modal
+  const [showDevModal, setShowDevModal] = useState(false);
+  const [devKeyInput, setDevKeyInput] = useState('');
+  const [devKeyError, setDevKeyError] = useState('');
 
   const handleEmailLogin = async () => {
     if (!email.trim() || !password) { Alert.alert('提示', '请输入邮箱和密码'); return; }
@@ -32,13 +41,11 @@ export default function LoginScreen() {
   const handlePhoneLogin = async () => {
     if (!phone.trim()) { Alert.alert('提示', '请输入手机号'); return; }
     if (!codeSent) {
-      // Simulate sending verification code
       Alert.alert('提示', `验证码已发送到 ${phone.trim()}`);
       setCodeSent(true);
       return;
     }
     if (!code.trim()) { Alert.alert('提示', '请输入验证码'); return; }
-    // Demo: any 6-digit code works
     if (code.trim().length !== 6) { Alert.alert('提示', '请输入6位验证码'); return; }
     Alert.alert('提示', '手机验证码登录需要 Firebase Phone Auth 配置。\n当前为演示模式。');
   };
@@ -51,17 +58,26 @@ export default function LoginScreen() {
     );
   };
 
+  const handleDevLogin = () => {
+    if (devKeyInput === DEV_MASTER_KEY) {
+      setDeveloper(true);
+      setShowDevModal(false);
+      setDevKeyError('');
+      router.replace('/(tabs)');
+    } else {
+      setDevKeyError('密码错误，请重试');
+    }
+  };
+
   return (
     <KeyboardAvoidingView style={sc.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={sc.content}>
-        {/* Logo */}
         <View style={sc.logoContainer}>
           <View style={sc.logo}><Ionicons name="fitness" size={48} color={Colors.primary} /></View>
           <Text style={sc.appName}>FitBody</Text>
           <Text style={sc.tagline}>你的智能身材管理助手</Text>
         </View>
 
-        {/* Mode Tabs */}
         <View style={sc.tabRow}>
           {([
             { key: 'phone' as const, label: '手机登录', icon: 'phone-portrait' as const },
@@ -76,7 +92,6 @@ export default function LoginScreen() {
           ))}
         </View>
 
-        {/* Email Login Form */}
         {activeMode === 'email' && (
           <View style={sc.form}>
             <Input label="邮箱" placeholder="请输入邮箱地址" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
@@ -85,7 +100,6 @@ export default function LoginScreen() {
           </View>
         )}
 
-        {/* Phone Login Form */}
         {activeMode === 'phone' && (
           <View style={sc.form}>
             <Input label="手机号" placeholder="请输入手机号" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
@@ -99,7 +113,6 @@ export default function LoginScreen() {
           </View>
         )}
 
-        {/* WeChat Login */}
         {activeMode === 'wechat' && (
           <View style={sc.form}>
             <View style={sc.wechatBox}>
@@ -111,7 +124,6 @@ export default function LoginScreen() {
           </View>
         )}
 
-        {/* Links */}
         <View style={sc.links}>
           <Text style={sc.linkText}>还没有账号？</Text>
           <Button title="立即注册" onPress={() => router.push('/(auth)/register')} variant="ghost" size="sm" />
@@ -119,7 +131,38 @@ export default function LoginScreen() {
         <View style={[sc.links, { marginTop: Spacing.md }]}>
           <Button title="跳过登录，直接使用" onPress={() => router.replace('/(tabs)')} variant="ghost" size="sm" />
         </View>
+
+        {/* Developer entry — visible but discreet */}
+        <TouchableOpacity style={sc.devEntry} onPress={() => { setShowDevModal(true); setDevKeyInput(''); setDevKeyError(''); }}>
+          <Ionicons name="key" size={14} color={Colors.textTertiary} />
+          <Text style={sc.devEntryText}>开发者</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Dev Password Modal */}
+      <Modal visible={showDevModal} transparent animationType="fade">
+        <View style={sc.modalOverlay}>
+          <View style={sc.modalCard}>
+            <Ionicons name="shield-checkmark" size={40} color={Colors.primary} style={{ textAlign: 'center', marginBottom: Spacing.md }} />
+            <Text style={sc.modalTitle}>创作者验证</Text>
+            <Text style={sc.modalDesc}>输入开发者密钥，验证你是 FitBody 的创作者，获取永久 VIP 权限。</Text>
+            <TextInput
+              style={sc.modalInput}
+              value={devKeyInput}
+              onChangeText={setDevKeyInput}
+              secureTextEntry
+              placeholder="输入开发者密钥"
+              placeholderTextColor={Colors.textTertiary}
+              autoFocus
+            />
+            {devKeyError ? <Text style={sc.modalError}>{devKeyError}</Text> : null}
+            <View style={sc.modalBtns}>
+              <Button title="取消" onPress={() => setShowDevModal(false)} variant="ghost" style={{ flex: 1 }} />
+              <Button title="验证" onPress={handleDevLogin} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -143,4 +186,15 @@ const sc = StyleSheet.create({
   wechatDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: Spacing.xs, textAlign: 'center' },
   links: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   linkText: { fontSize: FontSize.md, color: Colors.textSecondary },
+  // Dev entry
+  devEntry: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: Spacing.xl, paddingVertical: Spacing.md },
+  devEntryText: { fontSize: FontSize.xs, color: Colors.textTertiary },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
+  modalCard: { backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.xl, width: '100%', maxWidth: 340 },
+  modalTitle: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.text, textAlign: 'center', marginBottom: Spacing.sm },
+  modalDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: Spacing.lg },
+  modalInput: { backgroundColor: Colors.surfaceVariant, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: 14, fontSize: FontSize.lg, fontWeight: '700', color: Colors.primary, textAlign: 'center', letterSpacing: 4, marginBottom: Spacing.md },
+  modalError: { color: Colors.danger, fontSize: FontSize.sm, textAlign: 'center', marginBottom: Spacing.md },
+  modalBtns: { flexDirection: 'row', gap: Spacing.md },
 });
